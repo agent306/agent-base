@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+.tmp/
+.env
+.env.*
+!.env.example
+*token*
+*credentials*
+agent-base-install.json
+agent-base-backups/
