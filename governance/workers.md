@@ -13,7 +13,10 @@ recursive delegation or scope expansion.
 
 Own disjoint files/worktrees. Serialize shared builds, database mutations, release
 operations and cleanup. The parent does useful independent work and reviews the
-actual diff and evidence, not just a summary. Independent review needs material risk.
+actual diff and evidence, not just a summary. An extra reviewer solely for a second
+opinion needs material risk; independent verification admitted by the core
+multi-workstream trigger need not be high-risk. Dangerous/stateful operations
+remain with the root as specified there.
 
 Stop/reassign work on architectural misunderstanding, invented assumptions,
 regressions, repeated constraint violations or multiple corrective prompts.

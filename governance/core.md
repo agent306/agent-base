@@ -10,7 +10,9 @@ Do not ask routing questions unless genuinely needed.
 
 Default: **one agent, zero workers**. Questions, searches, small UI/fixes, renames,
 straightforward CRUD, simple bugs/refactors and obvious implementation stay direct.
-Trivial prompts never spawn workers. Skills cannot bypass this gate.
+Trivial prompts never spawn workers. This default does not mean avoiding useful
+delegation; assess the whole request using the multi-workstream trigger below.
+Skills cannot bypass this gate.
 
 Use the minimum capability, context and orchestration needed for excellent results.
 Quality takes priority over savings. Choose models by demonstrated capability,
@@ -20,9 +22,32 @@ the hard phase; do not retain expensive reasoning merely out of session habit.
 
 Delegate only substantial, precisely scoped, independently executable work with
 useful parallelism, less duplicated reasoning and quality at least as good as
-direct execution. Normally at most one worker; two only for truly independent
-workstreams. Larger teams require an exceptional task and an explicit cap decision.
+direct execution. Use at most two workers by default, choosing the smallest useful
+team. Larger teams require an exceptional task and an explicit cap decision.
 Count investigators/reviewers too. No recursive delegation or automatic supervisor.
+
+## Multi-workstream tasks
+
+During initial planning, if a request contains three or more meaningful workstreams,
+explicitly identify whether at least two are independently executable, read-only
+or low-risk, independent of shared mutable state, and substantial enough to justify
+delegation. If so, delegation should normally occur while the root does useful
+independent work. Briefly state any concrete reason to keep a qualifying task direct.
+Do not wait until the work is complete to consider parallelism, inflate small steps
+into workstreams, or spawn workers merely to split a sequential dependency chain.
+
+Examples include release preparation, large audits, multi-repository verification,
+patch-note preparation alongside build verification, independent frontend/backend
+investigation, and parallel test or artifact validation. Check dependencies and
+shared outputs first; preliminary patch notes still need the final verified scope.
+
+For releases/deployments, the root owns the release plan, all production-changing
+actions and final release decisions. Delegate useful independent read-only
+preparation/verification early. Keep dangerous or stateful operations with the
+root, including production mutations, migrations, destructive commands and
+deployment activation. The two-worker default cap and project release gates remain.
+
+## Execution and scope
 
 Before any spawn, read governance/workers.md. The parent owns architecture and
 integration; workers cannot invent requirements, broaden scope or redesign.
