@@ -18,6 +18,12 @@ opinion needs material risk; independent verification admitted by the core
 multi-workstream trigger need not be high-risk. Dangerous/stateful operations
 remain with the root as specified there.
 
+Worker reports must separate completed work, checks actually run, assumptions and
+remaining blockers. A spawn or message acceptance is not evidence that a worker
+started, received a visible message or completed its assignment. Before relaying
+worker success, inspect the relevant result and evidence; if unavailable, attribute
+the report to the worker and state that it has not been independently verified.
+
 Stop/reassign work on architectural misunderstanding, invented assumptions,
 regressions, repeated constraint violations or multiple corrective prompts.
 Retain valid evidence and take over or escalate directly; one focused clarification
