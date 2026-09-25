@@ -88,6 +88,10 @@ python bootstrap/agent_base.py rollback --provider codex --snapshot <private-dir
 Uninstall deactivates owned baseline resources while preserving unrelated
 configuration and locally edited content. Rollback restores the recorded prior
 installation and managed values, refusing conflicts with newer edits.
+If edited resources remain, uninstall reports PARTIAL with exit code 2 and retains
+their ownership/recovery manifest. Move the kept resource outside discovery or
+resolve it back to the installed content, then rerun uninstall. Setup and validation
+reject partial deactivation; unrelated settings changed afterward remain preserved.
 Neither operation deletes the authoritative checkout or follows a link into its
 target for recursive deletion. Recovery is scoped, not a home-directory restore.
 Snapshot content may include private configuration; never publish it.

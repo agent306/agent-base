@@ -415,6 +415,7 @@ def inspect(args):
     return {"os": sys.platform, "environment": "WSL" if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP") else "native",
             "provider": args.provider, "home": str(home), "codex_home": str(codex), "skill": str(skill),
             "checkout": str(ROOT), "git": git_state(), "config_changes": changes,
+            "installation_status": state.get("status", "installed" if state else "not_installed"),
             "instructions_sha256": sha(instructions) if instructions.is_file() else None,
             "config_sha256": sha(cfg) if cfg.is_file() else None,
             "instruction_diff_command": "Compare existing AGENTS.md with generated core + Codex adapter before passing its reviewed SHA256.",
@@ -471,6 +472,8 @@ def setup(args):
     report = inspect(args)
     home, codex, skill = locations(args)
     state = load_manifest(codex)
+    if state.get("status") == "partial_uninstall":
+        raise ValueError("PARTIAL uninstall pending; resolve preserved edits and rerun uninstall, or roll back its transaction")
     owned = state.get("resources", {})
     plans, original_owned = [], []
     mode = "copy" if args.copy else state.get("mode", "linked")
@@ -561,6 +564,8 @@ def validate(args):
     state = load_manifest(codex)
     if state.get("version") != 2:
         raise ValueError("Replacement installation manifest missing")
+    if state.get("status") == "partial_uninstall":
+        raise ValueError("PARTIAL uninstall pending; installation is not active/validated as a complete baseline")
     source = git_state()
     if source["revision"] != state.get("revision") or source["dirty"] is not False:
         raise ValueError("Source checkout differs from the recorded clean installed revision; review and update")
@@ -598,19 +603,21 @@ def uninstall(args):
     for name, digest in state["resources"].items():
         path = Path(name)
         before = capture(path)
-        if fingerprint(before) != digest:
+        old = originals.get(name, {}).get("before", {"kind": "missing"})
+        after = {"kind": "missing"} if name in state["original_owned"] else old
+        if before == after:
+            continue
+        # Moving an edited resource away is an explicit safe resolution for retry.
+        if before["kind"] != "missing" and fingerprint(before) != digest:
             preserved.append(name)
             continue
         # Never remove the actual checkout, even if someone changes its location.
         if not is_link(path) and path.resolve() == ROOT.resolve():
             raise ValueError("Refusing to remove physical authoritative checkout")
-        old = originals.get(name, {}).get("before", {"kind": "missing"})
-        after = {"kind": "missing"} if name in state["original_owned"] else old
-        if before != after:
-            plans.append({"path": name, "before": before, "after": after})
+        plans.append({"path": name, "before": before, "after": after})
     cfg = codex / "config.toml"
     original = originals.get(str(cfg))
-    if original and cfg.is_file() and not is_link(cfg):
+    if original and not state.get("uninstall_config_restored") and cfg.is_file() and not is_link(cfg):
         old = base64.b64decode(original["before"].get("bytes", "")).decode("utf-8")
         applied = base64.b64decode(original["after"]["bytes"]).decode("utf-8")
         current = cfg.read_bytes().decode("utf-8")
@@ -618,11 +625,24 @@ def uninstall(args):
         if restored != current:
             plans.append({"path": str(cfg), "before": capture(cfg), "after": file_state(restored.encode()), "config": True})
     mpath = codex / MANIFEST
-    plans.append({"path": str(mpath), "before": capture(mpath), "after": {"kind": "missing"}})
-    journal = transaction(snapshot, plans, {"command": "uninstall", "codex_home": str(codex), "home": str(home)})
-    print(f"Uninstalled; transaction: {journal}")
+    manifest_after = {"kind": "missing"}
     if preserved:
-        print("Preserved locally edited resources (review manually): " + ", ".join(preserved))
+        remaining = dict(state)
+        remaining.update(status="partial_uninstall", uninstall_config_restored=True,
+                         resources={name: state["resources"][name] for name in preserved})
+        manifest_after = file_state((json.dumps(remaining, indent=2) + "\n").encode())
+    plans.append({"path": str(mpath), "before": capture(mpath), "after": manifest_after})
+    # An unchanged retry retains ownership without generating another transaction.
+    if all(change["before"] == change["after"] for change in plans):
+        journal = "unchanged; existing recovery journal retained"
+    else:
+        journal = transaction(snapshot, plans, {"command": "uninstall", "codex_home": str(codex), "home": str(home)})
+    if preserved:
+        raise ValueError("PARTIAL uninstall; preserved locally edited resources and their ownership manifest: " +
+                         ", ".join(preserved) + f". Transaction: {journal}. "
+                         "Move edited resources outside discovery or restore their installed content/links, "
+                         "then rerun uninstall with the same snapshot. No modified content was deleted.")
+    print(f"Uninstalled; transaction: {journal}")
 
 
 def rollback(args):

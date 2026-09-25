@@ -164,10 +164,12 @@ class BootstrapTests(unittest.TestCase):
         cfg = self.codex / "config.toml"
         cfg.write_text(app.read_text(cfg).replace('model = "gpt-6-sol"', 'model = "user-choice"'))
         self.write("AGENTS.md", "User policy")
-        self.run_cmd("uninstall")
+        with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+            self.run_cmd("uninstall")
         self.assertEqual(tomllib.loads(app.read_text(cfg))["model"], "user-choice")
         self.assertEqual(app.read_text(self.codex / "AGENTS.md"), "User policy")
-        self.assertIn("Preserved locally edited", self.output.getvalue())
+        self.assertTrue((self.codex / app.MANIFEST).exists())
+        self.assertNotIn("Uninstalled;", self.output.getvalue())
 
     def test_legacy_role_retirement_owned_hash_only_and_rollback(self):
         role = self.write("agents/agent-base-judgment.toml", 'model = "gpt-6-astra"\n')
@@ -273,9 +275,11 @@ class BootstrapTests(unittest.TestCase):
         user_dir = self.codex / "agent-base/.git"
         user_dir.mkdir()
         (user_dir / "local-work").write_text("User work")
-        self.run_cmd("uninstall")
+        with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+            self.run_cmd("uninstall")
         self.assertEqual((user_dir / "local-work").read_text(), "User work")
-        self.assertIn("Preserved locally edited", self.output.getvalue())
+        self.assertTrue((self.codex / app.MANIFEST).exists())
+        self.assertNotIn("Uninstalled;", self.output.getvalue())
 
     def test_legacy_lookalike_loader_is_not_owned(self):
         self.write(app.MANIFEST, json.dumps({"provider": "codex", "repository": str(self.repo)}))
@@ -335,6 +339,74 @@ class BootstrapTests(unittest.TestCase):
             with self.subTest(source=source), patch.object(app, "git_state", return_value=source):
                 with self.assertRaisesRegex(ValueError, "recorded clean installed revision"):
                     self.run_cmd("validate")
+
+    def test_partial_uninstall_retains_edited_skill_ownership_and_retry_finishes(self):
+        self.install()
+        skill = self.home / ".agents/skills/ui-ux"
+        (skill / "SKILL.md").write_text("Edited user skill")
+        initial = json.loads((self.codex / app.MANIFEST).read_text())
+        with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+            self.run_cmd("uninstall")
+        pending = json.loads((self.codex / app.MANIFEST).read_text())
+        self.assertEqual(pending["status"], "partial_uninstall")
+        self.assertEqual(pending["initial_transaction"], initial["initial_transaction"])
+        self.assertEqual(pending["resources"], {str(skill): initial["resources"][str(skill)]})
+        self.assertEqual((skill / "SKILL.md").read_text(), "Edited user skill")
+        self.assertFalse((self.codex / "AGENTS.md").exists())
+        self.assertNotIn("Uninstalled;", self.output.getvalue())
+        transactions = len(self.journals())
+        with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+            self.run_cmd("uninstall")
+        self.assertEqual(len(self.journals()), transactions)
+        for command in ("setup", "validate"):
+            with self.subTest(command=command), self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+                self.run_cmd(command)
+        saved = self.base / "saved-user-skill"
+        skill.rename(saved)
+        # Retry must leave user config edits made after partial removal untouched.
+        config = self.codex / "config.toml"
+        config.write_text('model = "gpt-6-sol"\nuser_setting = true\n')
+        self.run_cmd("uninstall")
+        self.assertFalse((self.codex / app.MANIFEST).exists())
+        self.assertEqual((saved / "SKILL.md").read_text(), "Edited user skill")
+        self.assertEqual(tomllib.loads(app.read_text(config))["model"], "gpt-6-sol")
+        self.assertIn("Uninstalled;", self.output.getvalue())
+
+    def test_partial_uninstall_preserves_changed_link_and_target_until_resolved(self):
+        self.run_cmd("setup")
+        skill = self.home / ".agents/skills/ui-ux"
+        alternate = self.base / "custom-skill"
+        alternate.mkdir()
+        (alternate / "SKILL.md").write_text("Custom link target")
+        app.unlink_resource(skill)
+        app.directory_link(skill, alternate)
+        with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
+            self.run_cmd("uninstall")
+        self.assertTrue(app.linked_to(skill, alternate))
+        self.assertEqual((alternate / "SKILL.md").read_text(), "Custom link target")
+        self.assertIn(str(skill), json.loads((self.codex / app.MANIFEST).read_text())["resources"])
+        self.assertNotIn("Uninstalled;", self.output.getvalue())
+        app.unlink_resource(skill)
+        app.directory_link(skill, self.repo / "skills/ui-ux")
+        self.run_cmd("uninstall")
+        self.assertFalse(app.present(skill))
+        self.assertFalse((self.codex / app.MANIFEST).exists())
+        self.assertTrue((alternate / "SKILL.md").is_file())
+        self.assertTrue((self.repo / "skills/ui-ux/SKILL.md").is_file())
+
+    def test_cli_partial_uninstall_exits_two_without_success_claim(self):
+        self.install()
+        skill = self.home / ".agents/skills/ui-ux/SKILL.md"
+        skill.write_text("Edited skill")
+        result = app.subprocess.run([app.sys.executable, "-B", app.__file__, "uninstall",
+                                     "--provider", "codex", "--home", str(self.home),
+                                     "--codex-home", str(self.codex), "--snapshot", str(self.snapshot)],
+                                    capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("PARTIAL uninstall", result.stderr)
+        self.assertNotIn("Uninstalled;", result.stdout + result.stderr)
+        self.assertTrue((self.codex / app.MANIFEST).is_file())
+        self.assertEqual(skill.read_text(), "Edited skill")
 
     def test_transaction_failure_restores_prior_state(self):
         self.write("config.toml", 'model = "prior"\n')
