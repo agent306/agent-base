@@ -19,6 +19,17 @@ MANAGED = {"": ("model", "model_reasoning_effort"), "agents": (
     "enabled", "max_concurrent_threads_per_session", "default_subagent_model",
     "default_subagent_reasoning_effort")}
 IGNORE = {".git", "__pycache__", ".tmp", ".venv"}
+AGENT_ROUTES = {
+    "agent-base-judgment": ("gpt-6-astra", "high"),
+    "agent-base-implementation": ("gpt-6-sol", "medium"),
+    "agent-base-mechanical": ("gpt-6-luna", "low"),
+}
+
+
+def agent_files(codex):
+    return [(codex / "agents" / (name + ".toml"),
+             ROOT / "profiles/codex/agents" / (name + ".toml"))
+            for name in AGENT_ROUTES]
 
 
 def sha(path):
@@ -148,6 +159,13 @@ def inspect(args):
         if not instructions.is_file() or sha(instructions) != args.reviewed_instructions_sha256:
             conflicts.append("C: existing AGENTS.md needs semantic review; keep, use baseline or custom merge")
     changes = []
+    state_path = codex / "agent-base-install.json"
+    state = json.loads(state_path.read_text()) if state_path.is_file() else {}
+    installed_agents = state.get("managed_agents", {})
+    for dest, source in agent_files(codex):
+        if present(dest) and (dest.is_symlink() or not dest.is_file() or
+                             sha(dest) not in (sha(source), installed_agents.get(dest.name))):
+            conflicts.append(f"C: custom agent has unreviewed local content: {dest}")
     for section, keys in MANAGED.items():
         for key in keys:
             before, after = value(data, section, key), value(desired(), section, key)
@@ -216,6 +234,15 @@ def repo_validate():
             raise ValueError("Unexpected/forbidden worker default")
     if settings["model"] != "gpt-6-sol" or settings["model_reasoning_effort"] != "medium":
         raise ValueError("Default root must be Sol/Medium")
+    for name, (model, effort) in AGENT_ROUTES.items():
+        path = ROOT / "profiles/codex/agents" / (name + ".toml")
+        agent = tomllib.loads(path.read_text())
+        if (agent.get("name") != name.replace("-", "_") or
+                not agent.get("description") or not agent.get("developer_instructions") or
+                agent.get("model") != model or agent.get("model_reasoning_effort") != effort):
+            raise ValueError(f"Invalid required model/effort route: {name}")
+        if name == "agent-base-judgment" and agent.get("sandbox_mode") != "read-only":
+            raise ValueError("Judgment role must remain read-only")
     skill = (ROOT / "skills/ui-ux/SKILL.md").read_text()
     if not skill.startswith("---\nname: ui-ux\ndescription:"):
         raise ValueError("Invalid skill metadata")
@@ -247,6 +274,9 @@ def validate(args):
         raise ValueError("Defaults differ: " + ", ".join(deviations))
     if deviations:
         print("User-kept departures: " + ", ".join(deviations))
+    for dest, source in agent_files(codex):
+        if not dest.is_file() or sha(dest) != sha(source):
+            raise ValueError(f"Missing/drifted model-role configuration: {dest}")
     print("Installed validation PASS; " + ("COPY snapshot; updates need explicit refresh" if copy else "linked policies/skill"))
 
 
@@ -280,8 +310,13 @@ def setup(args):
     if old != updated:
         backup(cfg, codex)
         atomic_write(cfg, updated)
+    for dest, source in agent_files(codex):
+        if not dest.is_file() or sha(dest) != sha(source):
+            backup(dest, codex)
+            atomic_write(dest, source.read_text(encoding="utf-8"))
     atomic_write(codex / "agent-base-install.json", json.dumps({"mode": "copy" if args.copy else "linked",
                   "repository": str(ROOT), "provider": "codex",
+                  "managed_agents": {dest.name: sha(dest) for dest, _ in agent_files(codex)},
                   "kept_instructions": sha(p) if args.keep_instructions else None}, indent=2) + "\n")
     validate(args)
 

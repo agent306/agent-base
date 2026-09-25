@@ -37,6 +37,10 @@ For "set this up", complete this process; do not guess a provider or override co
 7. Setup preflights all conflicts before any writes, backs up replaced files, links
    the repository and selected skill, installs the loader, and merges only selected
    TOML scalar keys. It preserves unrelated comments, settings and secrets.
+   It also installs the three `agent-base-*.toml` model-role files in CODEX_HOME/agents.
+   Role updates require identical content or a match to the previous managed hash;
+   locally edited, linked or colliding role files stop setup before any writes.
+   Existing custom agents outside these names are not modified.
 8. Run validate and inspect the resulting links and defaults. Report any limitations.
    New sessions load changes; this does not switch the running root model.
 

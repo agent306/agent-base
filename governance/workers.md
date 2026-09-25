@@ -6,6 +6,13 @@ behavior; fixed architecture and constraints; behavior to preserve; explicit
 non-goals; acceptance criteria; targeted tests; relevant design/instruction paths;
 and evidence already established.
 
+The contract also identifies the assignment class, selected model/effort and why
+they fit. Apply the provider's routing adapter before every spawn; inherited
+defaults and specialist role names are not evidence of deliberate selection.
+Check any named-role model pins. Reassess risky decisions when a worker repeatedly
+misunderstands the architecture or the user's intended behavior; do not continue
+the same approach merely by spawning another copy with the same settings.
+
 Tell the worker it is not alone: preserve other edits and accommodate concurrent
 work. Uncovered architecture/design decisions must return to the parent; stop
 rather than guess. No unrelated repositories, refactors, invented requirements,

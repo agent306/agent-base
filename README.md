@@ -30,6 +30,12 @@ administrator privileges; Unix uses symbolic links. Policies and skills remain
 linked to this checkout. config.toml is merged, never wholly replaced or committed.
 Run update after pulling to reapply reviewed scalar config defaults.
 
+Setup also installs three model-bound roles in `~/.codex/agents/`: judgment
+(Astra/High), implementation (Sol/Medium), and mechanical work (Luna/Low).
+Both model and effort are validated. These small managed copies refresh during
+setup/update; locally modified or colliding role files stop installation before
+writes. Unrelated custom agents and user model overrides remain intact.
+
 Keep the checkout at its installed location. Moving it requires setup against the
 new location after conflict review. Backups stay in the user's config directory,
 outside Git. Restart an agent session to refresh instruction/skill discovery.

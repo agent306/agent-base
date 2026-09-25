@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import tomllib
@@ -86,6 +87,44 @@ class BootstrapTests(unittest.TestCase):
             app.main(["setup", *self.args(root, "--copy", "--keep-instructions", "--config-resolution", "keep")])
             self.assertEqual((cfg / "AGENTS.md").read_text(), "User chose to retain this policy.\n")
             self.assertEqual(tomllib.loads((cfg / "config.toml").read_text())["model"], "gpt-6-astra")
+
+    def test_named_routes_install_and_detect_drift(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            args = self.args(root, "--copy")
+            app.main(["setup", *args])
+            for name, (model, effort) in app.AGENT_ROUTES.items():
+                data = tomllib.loads((root / ".codex/agents" / (name + ".toml")).read_text())
+                self.assertEqual((data["model"], data["model_reasoning_effort"]), (model, effort))
+            target = root / ".codex/agents/agent-base-judgment.toml"
+            target.write_text(target.read_text().replace("gpt-6-astra", "gpt-6-sol"))
+            with self.assertRaisesRegex(ValueError, "drifted model-role"):
+                app.main(["validate", *args])
+            before = target.read_bytes()
+            with self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
+                app.main(["setup", *args])
+            self.assertEqual(target.read_bytes(), before)
+
+    def test_unknown_named_role_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            target = root / ".codex/agents/agent-base-judgment.toml"
+            target.parent.mkdir(parents=True)
+            target.write_text('name = "user-owned"\n')
+            with self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
+                app.main(["setup", *self.args(root, "--copy")])
+            self.assertEqual(target.read_text(), 'name = "user-owned"\n')
+            self.assertFalse((root / ".codex/config.toml").exists())
+
+    def test_repository_rejects_weakened_judgment_pin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            repo = Path(folder) / "repo"
+            shutil.copytree(app.ROOT, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+            target = repo / "profiles/codex/agents/agent-base-judgment.toml"
+            target.write_text(target.read_text().replace("gpt-6-astra", "gpt-6-sol"))
+            with patch.object(app, "ROOT", repo):
+                with self.assertRaisesRegex(ValueError, "Invalid required model/effort"):
+                    app.repo_validate()
 
 
 if __name__ == "__main__":

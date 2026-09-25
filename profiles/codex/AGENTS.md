@@ -14,6 +14,11 @@ session default. Never use Terra. Do not infer subscription usage multipliers.
 The root-session model and spawned worker model are distinct. Instructions cannot
 change the current root model. Never spawn just to switch models. Before delegation
 or changing settings, read agent-base/profiles/codex/routing.md and the worker contract.
+Fixing worker routing does not authorize changing the main task's model/effort;
+preserve it unless the user explicitly asks to change the main task's settings.
+Every spawn must deliberately select a task-appropriate model and effort. With
+the current spawn API, pass both explicitly with a non-full fork; never omit them
+and call inheritance a routing decision. Check named-role pins before spawning.
 For UI work follow core design precedence; only if project design is absent load
 agent-base/design/README.md. Use the discovered ui-ux skill unless a project skill
 supplies the applicable workflow. Do not load all design files or skills by default.
