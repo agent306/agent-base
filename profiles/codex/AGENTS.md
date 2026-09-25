@@ -1,24 +1,27 @@
-# Codex user baseline
+# Codex adapter
 
-Locate the installed baseline at CODEX_HOME/agent-base (CODEX_HOME defaults to
-the verified user's ~/.codex). Before substantive work, read its governance/core.md
-once per session and apply its per-prompt routing. Project/scoped instructions
-take precedence over these user defaults.
+The ordinary new-session preference is GPT-6 Sol / Medium. Use available GPT-6
+Astra / High for difficult judgment, architecture, ambiguous failures or consequential
+review; optional GPT-6 Luna with a supported appropriate effort for tightly bounded
+low-risk work. xHigh is a bounded escalation for unresolved hard reasoning. Exclude
+Terra. Optimize task reliability and corrective work, not model novelty or a mandatory
+cheapest-first ladder; subscription allowance multipliers are unknown.
 
-For model choice use this compact rule: GPT-6 Sol / Medium for ordinary reliable
-implementation; GPT-6 Luna / Low for explicit bounded low-risk mechanical work;
-GPT-6 Astra when additional judgment is justified by complexity, ambiguity,
-architecture or regression risk. High/xHigh is a bounded escalation, not a whole
-session default. Never use Terra. Do not infer subscription usage multipliers.
+Preserve the user's selected root model and effort. Worker selection does not
+authorize changing root or global settings. Files cannot switch a running root.
+Before each spawn inspect the live tool schema, deliberately select model AND effort,
+check effective custom-role pins for conflicts, and use a supported context/fork
+mechanism permitting those settings with sufficient scoped evidence. A stronger
+specialist is legitimate. Unsupported controls require an accurate capability report,
+not invented arguments.
 
-The root-session model and spawned worker model are distinct. Instructions cannot
-change the current root model. Never spawn just to switch models. Before delegation
-or changing settings, read agent-base/profiles/codex/routing.md and the worker contract.
-Fixing worker routing does not authorize changing the main task's model/effort;
-preserve it unless the user explicitly asks to change the main task's settings.
-Every spawn must deliberately select a task-appropriate model and effort. With
-the current spawn API, pass both explicitly with a non-full fork; never omit them
-and call inheritance a routing decision. Check named-role pins before spawning.
-For UI work follow core design precedence; only if project design is absent load
-agent-base/design/README.md. Use the discovered ui-ux skill unless a project skill
-supplies the applicable workflow. Do not load all design files or skills by default.
+Distinguish selected root, requested worker settings, effective role configuration
+and runtime-reported execution identity. Tool acceptance, role/skill names and worker
+self-description do not verify identity; mark it unverified when metadata is hidden.
+
+Optional resources, loaded only when needed:
+- Before delegation: `{{BASE}}/governance/workers.md`.
+- Configuration or runtime diagnosis: `{{BASE}}/docs/runtime.md`.
+- UI fallback selection: `{{BASE}}/design/README.md`, and the applicable UI/UX skill.
+
+Project safety must stand on its own without this personal installation.

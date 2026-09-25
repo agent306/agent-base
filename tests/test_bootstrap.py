@@ -1,6 +1,9 @@
+"""Deterministic installer scenarios; all mutations use isolated temporary homes."""
+import contextlib
 import importlib.util
+import io
 import json
-import shutil
+import os
 from pathlib import Path
 import tempfile
 import tomllib
@@ -13,141 +16,342 @@ SPEC.loader.exec_module(app)
 
 
 class BootstrapTests(unittest.TestCase):
-    def args(self, root, *extra):
-        return ["--provider", "codex", "--home", str(root), "--codex-home", str(root / ".codex"), *extra]
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.repo = self.base / "checkout"
+        self.home = self.base / "home"
+        self.codex = self.home / ".codex"
+        self.snapshot = self.base / "rollback"
+        self.repo.mkdir()
+        for name in ("AGENTS.md", "BOOTSTRAP.md", "governance/core.md", "governance/workers.md", "profiles/codex/AGENTS.md", "docs/runtime.md", "design/README.md"):
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Fixture\nScoped useful policy.\n", encoding="utf-8")
+        (self.repo / "profiles/codex/AGENTS.md").write_text("# Adapter\nOptional {{BASE}}/docs/runtime.md\n", encoding="utf-8")
+        config = self.repo / "profiles/codex/config.toml"
+        config.write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 2\ndefault_subagent_model = "gpt-6-sol"\ndefault_subagent_reasoning_effort = "medium"\n', encoding="utf-8")
+        skill = self.repo / "skills/ui-ux/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("---\nname: ui-ux\ndescription: A fixture\n---\nUse project guidance.\n", encoding="utf-8")
+        self.addCleanup(patch.stopall)
+        patch.object(app, "ROOT", self.repo).start()
+        patch.object(app, "git_state", return_value={"revision": "a" * 40, "dirty": False}).start()
+        self.output = io.StringIO()
+        self.addCleanup(self.output.close)
 
-    def test_merge_preserves_unrelated_secrets_and_tables(self):
-        original = '# private\nmodel = "old"\nsecret = "do-not-print"\n[plugins.a]\nenabled = false\n[agents]\ncustom = 7\n'
+    def run_cmd(self, command, *extra):
+        with contextlib.redirect_stdout(self.output):
+            app.main([command, "--provider", "codex", "--home", str(self.home), "--codex-home", str(self.codex), "--snapshot", str(self.snapshot), *extra])
+
+    def write(self, name, contents):
+        path = self.codex / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(contents.encode() if isinstance(contents, str) else contents)
+        return path
+
+    def install(self, *extra):
+        self.run_cmd("setup", "--copy", *extra)
+
+    def journals(self):
+        return list((self.snapshot / "installer").glob("*.json"))
+
+    def test_setup_generated_flat_payload_and_no_roles(self):
+        self.install()
+        text = app.read_text(self.codex / "AGENTS.md")
+        self.assertIn("Scoped useful policy", text)
+        self.assertIn((self.codex / "agent-base/docs/runtime.md").as_posix(), text)
+        self.assertNotIn("{{BASE}}", text)
+        self.assertFalse((self.codex / "agents").exists())
+        self.run_cmd("validate")
+
+    def test_idempotency_creates_only_one_snapshot_transaction(self):
+        self.install()
+        before = (self.codex / app.MANIFEST).read_bytes()
+        self.install()
+        self.assertEqual(len(self.journals()), 1)
+        self.assertEqual(before, (self.codex / app.MANIFEST).read_bytes())
+
+    def test_conflicts_have_no_writes(self):
+        config = self.write("config.toml", 'model = "custom"\n')
+        instructions = self.write("AGENTS.md", "Custom policy\n")
+        with self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
+            self.install()
+        self.assertEqual(config.read_text(), 'model = "custom"\n')
+        self.assertEqual(instructions.read_text(), "Custom policy\n")
+        self.assertFalse(self.snapshot.exists())
+
+    def test_bom_crlf_and_unrelated_text_preserved(self):
+        original = '\ufeff# user\r\nmodel = "old" # preference\r\nsecret = "fixture-only"\r\n[plugins.demo]\r\nenabled = false\r\n[agents] # workers\r\ncustom = 7\r\n'
         merged = app.merge_config(original)
-        parsed = tomllib.loads(merged)
-        self.assertEqual(parsed["secret"], "do-not-print")
-        self.assertEqual(parsed["plugins"]["a"], {"enabled": False})
-        self.assertEqual(parsed["agents"]["custom"], 7)
-        self.assertIn("# private", merged)
+        self.assertTrue(merged.startswith("\ufeff# user\r\n"))
+        self.assertIn('secret = "fixture-only"\r\n', merged)
+        self.assertIn('model = "gpt-6-sol" # preference\r\n', merged)
         self.assertEqual(app.merge_config(merged), merged)
+        self.assertNotIn("\n", merged.replace("\r\n", ""))
 
-    def test_conflict_preflight_has_no_writes(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            cfg = root / ".codex"
-            cfg.mkdir()
-            (cfg / "config.toml").write_text('model = "gpt-6-astra"\n')
-            (cfg / "AGENTS.md").write_text("Never delegate anything.\n")
-            before = {p.name: p.read_bytes() for p in cfg.iterdir()}
-            with self.assertRaises(ValueError):
-                app.main(["setup", *self.args(root)])
-            self.assertEqual(before, {p.name: p.read_bytes() for p in cfg.iterdir()})
+    def test_inline_table_or_quoted_managed_keys_require_custom_merge(self):
+        for text in ('"model" = "old"\n', '["agents"]\nenabled = false\n', 'agents = { enabled = false }\n'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                app.merge_config(text)
 
-    def test_copy_setup_backup_validation_and_idempotence(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            cfg = root / ".codex"
-            cfg.mkdir()
-            (cfg / "config.toml").write_text('model = "gpt-6-astra"\n[plugins.example]\nenabled = true\n')
-            (cfg / "AGENTS.md").write_text("Reviewed previous preferences.\n")
-            args = self.args(root, "--copy", "--config-resolution", "baseline", "--reviewed-instructions-sha256", app.sha(cfg / "AGENTS.md"))
-            app.main(["setup", *args])
-            app.main(["validate", *args])
-            app.main(["setup", *args])
-            self.assertEqual(len(list((cfg / "agent-base-backups").rglob("*.*"))), 2)
-            self.assertTrue(tomllib.loads((cfg / "config.toml").read_text())["plugins"]["example"]["enabled"])
-            self.assertEqual(json.loads((cfg / "agent-base-install.json").read_text())["mode"], "copy")
+    def test_snapshot_inside_discovery_rejected(self):
+        self.snapshot = self.codex / "backup"
+        with self.assertRaisesRegex(ValueError, "outside"):
+            self.install()
+        self.assertFalse(self.codex.exists())
 
-    def test_override_and_skill_conflicts_stop_before_install(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            cfg = root / ".codex"
-            cfg.mkdir()
-            (cfg / "AGENTS.override.md").write_text("Different authority")
-            (root / ".agents/skills/ui-ux").mkdir(parents=True)
-            with self.assertRaises(ValueError):
-                app.main(["setup", *self.args(root)])
-            self.assertFalse((cfg / "agent-base").exists())
+    def test_missing_snapshot_rejected_before_writes(self):
+        with self.assertRaisesRegex(ValueError, "requires --snapshot"):
+            app.main(["setup", "--provider", "codex", "--home", str(self.home), "--codex-home", str(self.codex), "--copy"])
+        self.assertFalse(self.codex.exists())
 
-    def test_unix_link_behavior_without_affecting_user_home(self):
-        if app.os.name == "nt":
-            self.skipTest("Unix symlink path must be exercised on Unix; Windows gets real junction validation")
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            app.main(["setup", *self.args(root)])
-            self.assertTrue((root / ".codex/AGENTS.md").is_symlink())
-            app.main(["validate", *self.args(root)])
+    def test_existing_snapshot_audit_files_untouched(self):
+        self.snapshot.mkdir()
+        audit = self.snapshot / "snapshot.json"
+        audit.write_text('"original audit"')
+        self.install()
+        self.assertEqual(audit.read_text(), '"original audit"')
 
-    def test_unknown_provider_does_not_guess(self):
-        with self.assertRaisesRegex(ValueError, "Ask the user"):
-            app.main(["setup", "--provider", "unknown"])
+    def test_local_instruction_drift_blocks_setup_and_validate(self):
+        self.install()
+        path = self.write("AGENTS.md", "Later user edit\n")
+        with self.assertRaisesRegex(ValueError, "drift|locally modified"):
+            self.run_cmd("validate")
+        with self.assertRaisesRegex(ValueError, "locally modified"):
+            self.install()
+        self.assertEqual(path.read_text(), "Later user edit\n")
 
-    def test_explicit_keep_preserves_instruction_and_config_choices(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            cfg = root / ".codex"
-            cfg.mkdir()
-            (cfg / "AGENTS.md").write_text("User chose to retain this policy.\n")
-            (cfg / "config.toml").write_text('model = "gpt-6-astra"\n')
-            app.main(["setup", *self.args(root, "--copy", "--keep-instructions", "--config-resolution", "keep")])
-            self.assertEqual((cfg / "AGENTS.md").read_text(), "User chose to retain this policy.\n")
-            self.assertEqual(tomllib.loads((cfg / "config.toml").read_text())["model"], "gpt-6-astra")
+    def test_rollback_restores_bytes_and_preserves_later_unrelated_config(self):
+        original = b'\xef\xbb\xbfmodel = "old"\r\n[plugins.a]\r\nenabled = true\r\n'
+        config = self.write("config.toml", original)
+        old = self.write("AGENTS.md", b"Prior reviewed policy\r\n")
+        self.install("--config-resolution", "baseline", "--reviewed-instructions-sha256", app.sha(old))
+        config.write_bytes(config.read_bytes() + b'\r\n[plugins.b]\r\nenabled = false\r\n')
+        self.run_cmd("rollback")
+        self.assertEqual(old.read_bytes(), b"Prior reviewed policy\r\n")
+        parsed = tomllib.loads(app.read_text(config))
+        self.assertEqual(parsed["model"], "old")
+        self.assertFalse(parsed["plugins"]["b"]["enabled"])
+        self.assertFalse((self.codex / app.MANIFEST).exists())
+        self.assertTrue((self.repo / "governance/core.md").exists())
 
-    def test_named_routes_install_and_detect_drift(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            args = self.args(root, "--copy")
-            app.main(["setup", *args])
-            for name, (model, effort) in app.AGENT_ROUTES.items():
-                data = tomllib.loads((root / ".codex/agents" / (name + ".toml")).read_text())
-                self.assertEqual((data["model"], data["model_reasoning_effort"]), (model, effort))
-            target = root / ".codex/agents/agent-base-judgment.toml"
-            target.write_text(target.read_text().replace("gpt-6-astra", "gpt-6-sol"))
-            with self.assertRaisesRegex(ValueError, "drifted model-role"):
-                app.main(["validate", *args])
-            before = target.read_bytes()
-            with self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
-                app.main(["setup", *args])
-            self.assertEqual(target.read_bytes(), before)
+    def test_rollback_refuses_later_resource_edit_without_any_partial_restore(self):
+        self.install()
+        self.write("AGENTS.md", "User edit\n")
+        manifest = (self.codex / app.MANIFEST).read_bytes()
+        with self.assertRaisesRegex(ValueError, "Rollback conflict"):
+            self.run_cmd("rollback")
+        self.assertEqual((self.codex / app.MANIFEST).read_bytes(), manifest)
 
-    def test_unknown_named_role_is_not_overwritten(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            target = root / ".codex/agents/agent-base-judgment.toml"
-            target.parent.mkdir(parents=True)
-            target.write_text('name = "user-owned"\n')
-            with self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
-                app.main(["setup", *self.args(root, "--copy")])
-            self.assertEqual(target.read_text(), 'name = "user-owned"\n')
-            self.assertFalse((root / ".codex/config.toml").exists())
+    def test_uninstall_restores_prior_managed_values_preserves_local_config(self):
+        cfg = self.write("config.toml", 'model = "prior"\nsecret = "fixture"\n')
+        self.install("--config-resolution", "baseline")
+        cfg.write_bytes(cfg.read_bytes() + b'\n[plugins.later]\nenabled = true\n')
+        self.run_cmd("uninstall")
+        data = tomllib.loads(app.read_text(cfg))
+        self.assertEqual(data["model"], "prior")
+        self.assertEqual(data["secret"], "fixture")
+        self.assertTrue(data["plugins"]["later"]["enabled"])
+        self.assertNotIn("model_reasoning_effort", data)
+        self.assertFalse((self.codex / "AGENTS.md").exists())
+        self.assertFalse((self.home / ".agents/skills/ui-ux").exists())
+        self.assertTrue(self.repo.exists())
 
-    def test_repository_rejects_weakened_judgment_pin(self):
-        with tempfile.TemporaryDirectory() as folder:
-            repo = Path(folder) / "repo"
-            shutil.copytree(app.ROOT, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
-            target = repo / "profiles/codex/agents/agent-base-judgment.toml"
-            target.write_text(target.read_text().replace("gpt-6-astra", "gpt-6-sol"))
-            with patch.object(app, "ROOT", repo):
-                with self.assertRaisesRegex(ValueError, "Invalid required model/effort"):
-                    app.repo_validate()
+    def test_uninstall_preserves_later_user_managed_key_and_instruction_edits(self):
+        self.install()
+        cfg = self.codex / "config.toml"
+        cfg.write_text(app.read_text(cfg).replace('model = "gpt-6-sol"', 'model = "user-choice"'))
+        self.write("AGENTS.md", "User policy")
+        self.run_cmd("uninstall")
+        self.assertEqual(tomllib.loads(app.read_text(cfg))["model"], "user-choice")
+        self.assertEqual(app.read_text(self.codex / "AGENTS.md"), "User policy")
+        self.assertIn("Preserved locally edited", self.output.getvalue())
 
-    def test_linked_managed_role_refresh_preserves_unrelated_files(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            repo = root / "repo"
-            home = root / "home"
-            shutil.copytree(app.ROOT, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
-            with patch.object(app, "ROOT", repo):
-                args = self.args(home)
-                app.main(["setup", *args])
-                custom = home / ".codex/agents/user-owned.toml"
-                custom.write_text('name = "unrelated"\n')
-                cfg = home / ".codex/config.toml"
-                config_before = cfg.read_bytes()
-                source = repo / "profiles/codex/agents/agent-base-judgment.toml"
-                source.write_text(source.read_text() + "\n# Reviewed role revision.\n")
-                app.main(["setup", *args])
-                app.main(["validate", *args])
-                self.assertEqual((home / ".codex/agents/agent-base-judgment.toml").read_bytes(),
-                                 source.read_bytes())
-                self.assertEqual(custom.read_text(), 'name = "unrelated"\n')
-                self.assertEqual(cfg.read_bytes(), config_before)
-                self.assertEqual(len(list((home / ".codex/agent-base-backups").rglob("*.toml-*"))), 1)
+    def test_legacy_role_retirement_owned_hash_only_and_rollback(self):
+        role = self.write("agents/agent-base-judgment.toml", 'model = "gpt-6-astra"\n')
+        self.write(app.MANIFEST, json.dumps({"provider": "codex", "repository": str(self.repo), "mode": "linked", "managed_agents": {role.name: app.sha(role)}}))
+        loader = self.write("AGENTS.md", app.legacy_loader(self.codex))
+        before = loader.read_bytes()
+        self.install()
+        self.assertFalse(role.exists())
+        self.run_cmd("rollback")
+        self.assertTrue(role.exists())
+        self.assertEqual(loader.read_bytes(), before)
+
+    def test_legacy_role_edit_blocks_retirement(self):
+        role = self.write("agents/agent-base-mechanical.toml", 'model = "old"\n')
+        self.write(app.MANIFEST, json.dumps({"provider": "codex", "managed_agents": {role.name: app.sha(role)}}))
+        role.write_text('model = "local-change"\n')
+        with self.assertRaisesRegex(ValueError, "role|pin"):
+            self.install()
+        self.assertTrue(role.exists())
+
+    def test_override_and_active_profile_conflicts(self):
+        for name, text in (("AGENTS.override.md", "override"), ("config.toml", 'profile = "custom"\n[profiles.custom]\nmodel = "other"\n')):
+            path = self.write(name, text)
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Unresolved conflicts"):
+                self.install()
+            path.unlink()
+
+    def test_unrelated_roles_profiles_fallbacks_are_notices_and_preserved(self):
+        self.write("config.toml", 'project_doc_fallback_filenames = ["RULES.md"]\n[profiles.custom]\nmodel = "other"\n')
+        role = self.write("agents/custom.toml", 'model = "other"\n')
+        self.run_cmd("inspect")
+        report = json.loads(self.output.getvalue())
+        self.assertFalse(report["conflicts"])
+        self.assertTrue(any("pin" in n for n in report["notices"]))
+        self.install()
+        self.assertEqual(role.read_text(), 'model = "other"\n')
+
+    def test_wrong_provider_never_installs(self):
+        with self.assertRaisesRegex(ValueError, "No approved provider"):
+            app.main(["setup", "--provider", "other", "--home", str(self.home)])
+        self.assertFalse(self.home.exists())
+
+    def test_copy_refresh_requires_explicit_flag_and_detects_local_edits(self):
+        self.install()
+        (self.repo / "design/README.md").write_text("Reviewed new design")
+        with self.assertRaisesRegex(ValueError, "copy stale"):
+            self.run_cmd("validate")
+        with self.assertRaisesRegex(ValueError, "refresh-copy"):
+            self.install()
+        self.install("--refresh-copy")
+        self.assertEqual(app.read_text(self.codex / "agent-base/design/README.md"), "Reviewed new design")
+        (self.codex / "agent-base/design/README.md").write_text("Local edit")
+        with self.assertRaisesRegex(ValueError, "locally modified"):
+            self.install("--refresh-copy")
+
+    def test_update_requires_clean_reviewed_revision_never_runs_git_mutations(self):
+        self.install()
+        with patch.object(app, "git_state", return_value={"revision": "b" * 40, "dirty": True}):
+            with self.assertRaisesRegex(ValueError, "clean"):
+                self.run_cmd("update", "--reviewed-revision", "b" * 40)
+        with self.assertRaisesRegex(ValueError, "Review"):
+            self.run_cmd("update")
+        with patch.object(app.subprocess, "run") as process:
+            self.run_cmd("update", "--reviewed-revision", "a" * 40)
+            process.assert_not_called()
+
+    def test_real_platform_directory_links_and_scoped_rollback(self):
+        self.run_cmd("setup")
+        link = self.codex / "agent-base"
+        self.assertTrue(app.is_link(link))
+        self.assertTrue(app.linked_to(link, self.repo))
+        self.assertFalse((self.codex / "AGENTS.md").is_symlink())
+        self.run_cmd("validate")
+        self.run_cmd("rollback")
+        self.assertFalse(app.present(link))
+        self.assertTrue((self.repo / "skills/ui-ux/SKILL.md").is_file())
+
+    def test_stale_and_occupied_registration_conflict(self):
+        occupied = self.home / ".agents/skills/ui-ux"
+        occupied.mkdir(parents=True)
+        (occupied / "SKILL.md").write_text("User skill")
+        with self.assertRaisesRegex(ValueError, "Occupied"):
+            self.install()
+        self.assertEqual((occupied / "SKILL.md").read_text(), "User skill")
+
+    def test_manifest_has_no_unrelated_settings_or_credentials(self):
+        self.write("config.toml", 'private_token = "fixture-sensitive"\n')
+        self.install()
+        manifest = app.read_text(self.codex / app.MANIFEST)
+        self.assertNotIn("fixture-sensitive", manifest)
+        self.assertNotIn("private_token", manifest)
+
+    def test_reviewed_active_profile_persists_but_detects_changed_profile(self):
+        cfg = self.write("config.toml", 'profile = "custom"\n[profiles.custom]\nmodel = "other"\n')
+        self.install("--reviewed-config-sha256", app.sha(cfg))
+        self.run_cmd("validate")
+        cfg.write_text(app.read_text(cfg).replace('model = "other"', 'model = "changed"'))
+        with self.assertRaisesRegex(ValueError, "Selected profile"):
+            self.run_cmd("validate")
+
+    def test_added_ignored_or_empty_copy_directory_is_preserved_on_uninstall(self):
+        self.install()
+        user_dir = self.codex / "agent-base/.git"
+        user_dir.mkdir()
+        (user_dir / "local-work").write_text("User work")
+        self.run_cmd("uninstall")
+        self.assertEqual((user_dir / "local-work").read_text(), "User work")
+        self.assertIn("Preserved locally edited", self.output.getvalue())
+
+    def test_legacy_lookalike_loader_is_not_owned(self):
+        self.write(app.MANIFEST, json.dumps({"provider": "codex", "repository": str(self.repo)}))
+        self.write("AGENTS.md", app.legacy_loader(self.codex) + "User addition\n")
+        with self.assertRaisesRegex(ValueError, "locally modified"):
+            self.install()
+
+    def test_bom_before_first_table_preserved(self):
+        merged = app.merge_config('\ufeff[plugins.a]\r\nenabled = true\r\n')
+        self.assertTrue(merged.startswith("\ufeff"))
+        self.assertTrue(tomllib.loads(merged.lstrip("\ufeff"))["plugins"]["a"]["enabled"])
+
+    def test_single_snapshot_bundle_enforced_after_install(self):
+        self.install()
+        self.snapshot = self.base / "other-rollback"
+        with self.assertRaisesRegex(ValueError, "original snapshot"):
+            self.run_cmd("uninstall")
+
+    def test_manifest_cannot_claim_paths_outside_scope(self):
+        self.install()
+        manifest = self.codex / app.MANIFEST
+        data = json.loads(manifest.read_text())
+        data["resources"][str(self.base / "unrelated")] = "fake"
+        manifest.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "ownership scope"):
+            self.run_cmd("uninstall")
+
+    def test_legacy_owned_identical_links_are_removed_on_uninstall(self):
+        base_link = self.codex / "agent-base"
+        skill_link = self.home / ".agents/skills/ui-ux"
+        app.directory_link(base_link, self.repo)
+        app.directory_link(skill_link, self.repo / "skills/ui-ux")
+        self.write(app.MANIFEST, json.dumps({"provider": "codex", "repository": str(self.repo), "mode": "linked", "managed_agents": {}}))
+        self.write("AGENTS.md", app.legacy_loader(self.codex))
+        self.run_cmd("setup")
+        self.run_cmd("uninstall")
+        self.assertFalse(app.present(base_link))
+        self.assertFalse(app.present(skill_link))
+        self.assertTrue((self.repo / "skills/ui-ux/SKILL.md").is_file())
+
+    def test_unowned_identical_preexisting_links_are_preserved(self):
+        base_link = self.codex / "agent-base"
+        skill_link = self.home / ".agents/skills/ui-ux"
+        app.directory_link(base_link, self.repo)
+        app.directory_link(skill_link, self.repo / "skills/ui-ux")
+        self.run_cmd("setup")
+        self.run_cmd("uninstall")
+        self.assertTrue(app.linked_to(base_link, self.repo))
+        self.assertTrue(app.linked_to(skill_link, self.repo / "skills/ui-ux"))
+        # Remove test-owned junctions before TemporaryDirectory cleans the fixture.
+        app.unlink_resource(base_link)
+        app.unlink_resource(skill_link)
+
+    def test_validate_rejects_dirty_or_changed_source_revision(self):
+        self.install()
+        for source in ({"revision": "a" * 40, "dirty": True}, {"revision": "b" * 40, "dirty": False}):
+            with self.subTest(source=source), patch.object(app, "git_state", return_value=source):
+                with self.assertRaisesRegex(ValueError, "recorded clean installed revision"):
+                    self.run_cmd("validate")
+
+    def test_transaction_failure_restores_prior_state(self):
+        self.write("config.toml", 'model = "prior"\n')
+        original_restore = app.restore
+        failed = False
+        def fail_once(path, state):
+            nonlocal failed
+            if path.name == app.MANIFEST and not failed:
+                failed = True
+                raise OSError("injected failure")
+            original_restore(path, state)
+        with patch.object(app, "restore", side_effect=fail_once):
+            with self.assertRaisesRegex(OSError, "injected"):
+                self.install("--config-resolution", "baseline")
+        self.assertEqual(app.read_text(self.codex / "config.toml"), 'model = "prior"\n')
+        self.assertFalse((self.codex / "AGENTS.md").exists())
+        self.assertEqual(json.loads(self.journals()[0].read_text())["status"], "failed")
 
 
 if __name__ == "__main__":

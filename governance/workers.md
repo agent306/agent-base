@@ -1,41 +1,27 @@
-# Bounded worker contract
+# Bounded delegation
 
-Use only after the core spawn gate passes. The parent determines the approach,
-then supplies: exact objective; repository and owned files/components; expected
-behavior; fixed architecture and constraints; behavior to preserve; explicit
-non-goals; acceptance criteria; targeted tests; relevant design/instruction paths;
-and evidence already established.
+Supply the worker with its objective and deliverable; repository, files or worktree;
+read-only or permitted writes; relevant evidence and instructions; interfaces,
+invariants and behavior to preserve; acceptance criteria and focused checks; non-goals;
+and decisions requiring escalation. State requested model and effort when relevant.
+The root retains the overall outcome and integration responsibility.
 
-The contract also identifies the assignment class, selected model/effort and why
-they fit. Apply the provider's routing adapter before every spawn; inherited
-defaults and specialist role names are not evidence of deliberate selection.
-Check any named-role model pins. Reassess risky decisions when a worker repeatedly
-misunderstands the architecture or the user's intended behavior; do not continue
-the same approach merely by spawning another copy with the same settings.
+A mechanical assignment follows a specified approach. An expert may evaluate options
+and propose decisions inside its remit. Shared architecture changes outside that remit
+return to the root. Preserve concurrent user/agent work. Use disjoint ownership or
+isolated worktrees; serialize only real conflicts.
 
-Tell the worker it is not alone: preserve other edits and accommodate concurrent
-work. Uncovered architecture/design decisions must return to the parent; stop
-rather than guess. No unrelated repositories, refactors, invented requirements,
-recursive delegation or scope expansion.
+Check the actual tool schema and role configuration immediately before spawning.
+Some interfaces restrict overrides with a full-history fork; use a supported bounded
+context mechanism instead. Do not copy example arguments from a different runtime.
+If a named role pins a conflicting model/effort, select another appropriate supported
+route or explain the limitation. Do not silently claim a stronger worker than requested.
 
-Own disjoint files/worktrees. Serialize shared builds, database mutations, release
-operations and cleanup. The parent does useful independent work and reviews the
-actual diff and evidence, not just a summary. An extra reviewer solely for a second
-opinion needs material risk; independent verification admitted by the core
-multi-workstream trigger need not be high-risk. Dangerous/stateful operations
-remain with the root as specified there.
+Wait with native completion tools. On return inspect the material diff, deliverable
+and checks against the contract; reuse valid evidence rather than repeating all work.
+One targeted clarification can resolve a small omission. Repeated misunderstanding,
+scope drift or regressions warrants takeover or reassignment. Close completed workers
+where the interface supports it; otherwise let them finish and issue no further work.
 
-Worker reports must separate completed work, checks actually run, assumptions and
-remaining blockers. A spawn or message acceptance is not evidence that a worker
-started, received a visible message or completed its assignment. Before relaying
-worker success, inspect the relevant result and evidence; if unavailable, attribute
-the report to the worker and state that it has not been independently verified.
-
-Stop/reassign work on architectural misunderstanding, invented assumptions,
-regressions, repeated constraint violations or multiple corrective prompts.
-Retain valid evidence and take over or escalate directly; one focused clarification
-for a small omission is reasonable. This is not a mandatory weakest-model-first ladder.
-
-Observe task-class reliability, rework and regressions. Change future preferences
-after repeated comparable evidence, not one failure. Keep compact evidence only
-when it justifies a routing adjustment; avoid routine logging/benchmark probes.
+A concise result separates completed work, executed checks, assumptions and blockers.
+Report requested/configured model separately from observable execution metadata.

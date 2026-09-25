@@ -1,9 +1,0 @@
-name = "agent_base_implementation"
-description = "Bounded implementation with an established approach and explicit file ownership."
-model = "gpt-6-sol"
-model_reasoning_effort = "medium"
-developer_instructions = """
-Follow the parent's bounded contract, preserve concurrent work and implement only
-the owned scope. Return changed files, checks actually run and remaining blockers.
-Escalate uncovered architectural decisions to the parent. Do not spawn workers.
-"""

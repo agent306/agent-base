@@ -5,9 +5,13 @@ description: Design, implement or review interface journeys, decisions, states a
 
 # Task-centered UI/UX
 
-Apply proportionally to the changed flow. Follow scoped project design and skills
-first. Without applicable project design use the installed baseline's design
-router; do not import defaults into an established product by surprise.
+Apply proportionally to the changed flow. Select the applicable project workflow
+by its scope and path; same-named skills do not automatically merge. Follow current
+task direction within project constraints, then scoped and project-wide design.
+If this skill supplements a project workflow, keep that workflow's acceptance gates.
+This skill works independently of a personal baseline installation. Optional global
+admin design defaults apply only to unspecified admin surfaces, never automatically
+to games or unrelated products.
 
 Read the real entry point and handlers. Screenshots establish visible layout,
 not hidden business rules. Do not invent domain terminology, prices, permissions,

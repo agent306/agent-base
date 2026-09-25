@@ -1,100 +1,117 @@
-# Bootstrap contract for a coding agent
+# Setup, update and recovery
 
-For "set this up", complete this process; do not guess a provider or override conflicts.
+For “set this up,” complete inspection, approved installation and verification.
+Do not assume a CLI on PATH is the host serving the conversation.
 
-1. Detect OS, home, current agent and available tools. This installer requires
-   Python 3.11+. Do not install dependencies or request administrator rights silently.
-2. For Codex, identify CODEX_HOME when set; otherwise verify the actual user home
-   and its .codex directory. User skills are under ~/.agents/skills.
-   Use explicit --home/--codex-home only for a verified alternative or isolated test.
-3. Read profiles/codex/AGENTS.md and governance/core.md. Run inspect. Inspect the
-   existing instruction contents locally, config's relevant values, global skill
-   names and any design or override files. Never print secrets or upload user config.
-4. Classify each difference:
-   - A: identical/effectively identical: reuse without replacement.
-   - B: additive: merge only when unambiguous and preserving both intentions.
-   - C: conflicting: STOP that installation; report existing versus proposed behavior
-     and ask **keep existing / use agent-base / custom merge**. Do not overwrite.
-   Independent repository preparation may continue. An ambiguous custom merge
-   needs the user's specific resolution before installation.
-5. Config changes concern only the keys in profiles/codex/config.toml. For an
-   approved replacement use --config-resolution baseline. Keep existing conflicting
-   values with --config-resolution keep (validation reports departures).
-   Custom values must first be explicitly settled, then edited locally with backup;
-   do not silently encode guesses into the shared baseline.
-6. An existing AGENTS.md is never discarded automatically. If its requirements
-   are demonstrably preserved in the baseline (A/B), pass its exact SHA-256 from
-   inspect with --reviewed-instructions-sha256. For C, use that option only after
-   the user's chosen resolution has been implemented. Backups retain the old file.
-   An unresolved AGENTS.override.md or alternate agent.md/agents.md stops setup:
-   inspect and resolve its precedence before continuing; do not delete it automatically.
-   For a user choice to keep the current entry, use --keep-instructions; installation
-   reports that automatic baseline activation depends on that entry's contents.
-   A custom merge belongs in the provider profile only if genuinely reusable.
-   Otherwise back up and manually merge the user entry with an explicit reference
-   to the linked provider entry plus resolved personal instructions, then use
-   --keep-instructions. No automatic semantic merge or ambiguous precedence.
-7. Setup preflights all conflicts before any writes, backs up replaced files, links
-   the repository and selected skill, installs the loader, and merges only selected
-   TOML scalar keys. It preserves unrelated comments, settings and secrets.
-   It also installs the three `agent-base-*.toml` model-role files in CODEX_HOME/agents.
-   Role updates require identical content or a match to the previous managed hash;
-   locally edited, linked or colliding role files stop setup before any writes.
-   Existing custom agents outside these names are not modified.
-8. Run validate and inspect the resulting links and defaults. Report any limitations.
-   New sessions load changes; this does not switch the running root model.
+## Inspect
 
-## Platform behavior
+Verify OS/native versus WSL, home, CODEX_HOME, provider, runtime version and supported
+model/effort/tool controls. Python3.11+ is required. Use the existing stable user-owned
+checkout when valid; otherwise clone this repository to a durable user-controlled
+location. Never use a temporary checkout as the authoritative installation.
 
-- macOS/Linux: directory symlinks for the baseline and skill; AGENTS.md symlinks
-  to the provider entry point.
-- Windows: directory junctions for baseline and skill; a tiny regular AGENTS.md
-  loader reads the linked provider entry point. This is an intentional native
-  adapter, not a copied policy. Git changes to the linked policy remain authoritative.
-  config.toml remains an ordinary locally owned file with narrowly merged values.
-- If links/junctions are impossible, setup fails visibly. A user may explicitly
-  choose --copy. That mode is a managed snapshot, **not automatically synchronized**;
-  validate detects drift. For refresh, inspect and back up the exact old snapshots,
-  move those snapshots aside after conflict approval, then rerun setup --copy.
-  The installer deliberately refuses to recursively replace an occupied snapshot.
-  Never silently switch to copy mode.
-- Backups and installation state live inside CODEX_HOME/agent-base-backups and
-  CODEX_HOME/agent-base-install.json, never inside this repository.
-- Do not recursively remove an existing link target, unrelated skill, config tree
-  or unknown file. Existing conflicting links/skills require deliberate resolution.
+Read core and Codex adapter, then run:
 
-## Other coding agents
+```text
+python bootstrap/agent_base.py inspect --provider codex
+python bootstrap/agent_base.py validate --repo-only
+python -m unittest discover -s tests
+```
 
-Only Codex currently has a provider adapter. When the current agent is another
-provider, explain that governance/design/the UI skill are provider-neutral and
-can be used after its supported instruction/skill paths are confirmed. Ask what
-models replace the high-judgment, normal-implementation and bounded-mechanical
-roles (currently Astra/Sol/Luna) and which reasoning levels exist. Do not install
-Codex config into that provider. Create its profile only after those answers and
-official path/capability verification. No speculative provider folders/mappings.
+Inspect the relevant global/project instruction chain, overrides, fallbacks,
+profiles, role pins, applicable skills and links. Do not print or upload credentials.
+An inspection report cannot reveal every protected runtime instruction.
 
-## Safe updates
+Identical content needs no replacement. Unambiguous additions may be merged.
+For genuine behavioral conflicts or locally edited managed files, show the scoped
+difference and obtain keep existing / use baseline / custom merge. Known replacement
+of the owned baseline is preauthorized by a replacement request; do not ask per file.
+Do not delete other providers, sessions, caches, authentication or unrelated skills.
 
-Use a clean checkout and review incoming changes to this security-sensitive repo.
-The update command fetches first and shows the diff; it does not pull without
---reviewed-update <exact-upstream-SHA>. Review that exact commit, then rerun with
-the SHA. It fast-forwards to that exact reviewed commit (fetch plus merge --ff-only)
-and re-enters the reviewed installer for conflict-aware setup/validation. It does
-not refetch an unreviewed newer commit during promotion. No non-fast-forward merge,
-reset or force-push. An already-current checkout needs no redundant approval.
-Linked instructions/skills change immediately when the checkout changes; config
-scalars are reconciled by setup, so use a quiet boundary between agent sessions.
+## Install
 
-For a manual workflow: git fetch, review diff, git pull --ff-only, repository
-validation, setup and installed validation. Copy mode needs explicit refresh.
-Rollback by inspecting the backup and restoring only the affected paths; do not
-overwrite newer local changes. Backups may contain secrets and must stay private.
+For changes to existing files, request or reuse one explicitly authorized private
+snapshot outside all instruction/skill discovery paths. The installer accepts a
+snapshot directory; keep it out of this repository. Preserve it for rollback as
+requested by the user. Do not create extra nonproduction backups by habit.
 
-## Verified documentation
+```text
+python bootstrap/agent_base.py setup --provider codex --snapshot <private-directory>
+python bootstrap/agent_base.py validate --provider codex
+```
 
-[User configuration](https://learn.chatgpt.com/docs/config-file/config-basic),
-[AGENTS discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md),
-[skill locations](https://developers.openai.com/codex/skills),
-[subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents).
-Same-named skills can both appear; precedence here is an explicit policy, not
-a claim that the harness automatically merges or shadows skills.
+Use `--config-resolution baseline` only for an approved conflicting scalar replacement;
+`keep` retains the chosen departure and must be reported. A genuinely custom
+instruction replacement requires its reviewed hash and resolved content, not a blind
+overwrite. See `--help` for the current exact conflict-review controls.
+
+Only selected scalar defaults are merged into config.toml. Unrelated settings,
+comments and integrations remain. Never link the entire config directory or replace
+the entire config file. Old manifest-owned global role copies are retired only
+after hash/ownership validation. Project roles are not global installer property.
+
+The generated global AGENTS.md contains the core plus adapter directly. Optional
+paths resolve to the installation's stable resource directory. Windows directory
+junctions and Unix directory symlinks connect that resource directory and the shared
+skill to the checkout; the global instruction file is an ordinary managed file.
+File links are not directory junctions.
+
+If links are unavailable, explicitly choose the managed-copy mode `--copy`.
+Copies require setup/update with `--refresh-copy`; they never silently follow Git changes.
+Validation checks content drift. The installer must stop on unowned occupied paths,
+stale links or local modifications rather than recursively deleting targets.
+
+## Update
+
+Inspect dirty state and review the exact incoming revision in isolated staging.
+Run validation/tests there before activating it. At a safe checkpoint between shared
+operations, fast-forward the stable checkout to the reviewed commit, then run:
+
+```text
+python bootstrap/agent_base.py update --provider codex --reviewed-revision <full-SHA> --snapshot <private-directory>
+python bootstrap/agent_base.py validate --provider codex
+```
+
+The update command validates the reviewed current checkout; it does not fetch or
+execute newly pulled code. Review the installer itself before running it.
+Linked optional resources change with the stable checkout, so do not pull it during
+active work relying on them. Regenerate the global payload and copy installations.
+Do not reset unrelated dirty work. Confirm installed revision and remote SHA separately.
+
+## Uninstall and rollback
+
+```text
+python bootstrap/agent_base.py uninstall --provider codex --snapshot <private-directory>
+python bootstrap/agent_base.py rollback --provider codex --snapshot <private-directory>
+```
+
+Uninstall deactivates owned baseline resources while preserving unrelated
+configuration and locally edited content. Rollback restores the recorded prior
+installation and managed values, refusing conflicts with newer edits.
+Neither operation deletes the authoritative checkout or follows a link into its
+target for recursive deletion. Recovery is scoped, not a home-directory restore.
+Snapshot content may include private configuration; never publish it.
+
+File/link rollback does not rewind a linked Git checkout. When the command reports
+SOURCE ROLLBACK REQUIRED, use the recorded prior revision and repository snapshot
+to review a separate source rollback while preserving local edits, then validate
+that installation with its corresponding installer. Never call restored loader
+bytes proof that the old policy is active while its checkout is still new.
+
+## Verify the interface actually used
+
+Start a fresh session after cutover; the existing conversation retains old injected
+instructions. Check neutral-project discovery, relevant project roots and an intentional
+nested override. Run harmless trivial and substantial-work probes without supplying
+their desired routing answers. See docs/validation.md for evidence categories.
+
+A CLI-only result does not prove desktop behavior. Report hidden execution identity
+as UNVERIFIED and unavailable platforms as UNTESTED. No install can guarantee model
+compliance. Do not launch real application changes, deployments or migrations as tests.
+
+## Another provider or device
+
+Install separately on each device. If no approved provider profile exists, inspect
+its official supported instruction/skill/configuration mechanisms and ask for the
+model/effort mapping. Do not invent equivalents or copy Codex config into it.
+Provider-neutral principles, design and the skill can be reused after that mapping.

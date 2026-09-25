@@ -1,15 +1,23 @@
-# Agent-base repository instructions
+# Maintaining agent-base
 
-This private repository owns reusable user-level agent policy, design defaults,
-skills and provider adapters. It contains no application implementation.
+This public repository contains reusable personal defaults, a Codex adapter,
+shared design guidance, a UI/UX skill and installation tooling. Never commit
+credentials, machine-private configuration, private project content or audit snapshots.
 
-For "set this up", read BOOTSTRAP.md and inspect before installing. Do not treat
-this repository file as the user's global AGENTS; that entry point is
-profiles/codex/AGENTS.md. Keep provider-specific model/configuration in profiles/.
-Keep generic governance in governance/, design defaults in design/, and skills
-self-contained under skills/. Never import project names, assets or internals.
+Read BOOTSTRAP.md for setup. This file governs repository maintenance; it is not
+the installed user baseline. governance/core.md and profiles/codex/AGENTS.md are
+the authoritative always-loaded sources. The installer composes them into one
+global file; no nested mandatory loader. Keep their combined payload around
+500–800 words. Detailed procedures belong in optional resources.
 
-For changes: preserve conflict detection, backups and unknown user settings.
-Validate with `python bootstrap/agent_base.py validate --repo-only` and
-`python -m unittest discover -s tests`. No runtime provider/model probes unless
-explicitly authorized or materially useful. Keep this repository private.
+Preserve project independence and scoped design precedence. Keep provider mapping
+in profiles/, generic principles in governance/, design in design/, skills
+self-contained under skills/, and installer mechanics in bootstrap/.
+A provider without an approved mapping requires user input, not guessed equivalents.
+
+Before publishing, review the complete diff for private material. Preserve Git
+history and unrelated edits. Run repository validation and the unittest suite.
+Installer tests must use isolated homes and preserve unknown settings, links,
+local edits and rollback state. Configuration PASS is not behavior PASS.
+Document runtime-specific gaps honestly. Do not run model probes without a
+concrete validation need or use real application/deployment mutations as fixtures.
