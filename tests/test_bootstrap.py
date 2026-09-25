@@ -31,7 +31,7 @@ class BootstrapTests(unittest.TestCase):
             path.write_text("# Fixture\nScoped useful policy.\n", encoding="utf-8")
         (self.repo / "profiles/codex/AGENTS.md").write_text("# Adapter\nOptional {{BASE}}/docs/runtime.md\n", encoding="utf-8")
         config = self.repo / "profiles/codex/config.toml"
-        config.write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 2\ndefault_subagent_model = "gpt-6-sol"\ndefault_subagent_reasoning_effort = "medium"\n', encoding="utf-8")
+        config.write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 5\ndefault_subagent_model = "gpt-6-sol"\ndefault_subagent_reasoning_effort = "medium"\n', encoding="utf-8")
         skill = self.repo / "skills/ui-ux/SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text("---\nname: ui-ux\ndescription: A fixture\n---\nUse project guidance.\n", encoding="utf-8")

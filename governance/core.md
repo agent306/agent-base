@@ -10,7 +10,7 @@ risk or project gates justify it. Do not confuse containment with completion.
 For each meaningful request or scope change, consider ambiguity, consequences,
 dependencies, existing context and coordination cost. Choose DIRECT for questions
 and small or coherent work; SPECIALIST for one bounded difficult diagnosis,
-architectural decision or consequential review; PARALLEL for one or two substantial
+architectural decision or consequential review; PARALLEL for substantial
 independent assignments while the root does useful separate work; BLOCKED if the
 host forbids or lacks useful delegation. Two substantial streams can suffice.
 File count alone says neither risk nor parallelism. Briefly explain complex
@@ -19,9 +19,10 @@ divisions of work or a material reason to stay direct, without a routing ceremon
 This is the user's standing request for appropriate automatic delegation wherever
 persistent instructions are accepted as authorization. It cannot bypass a runtime
 restriction requiring fresh authorization. Use the smallest useful team: no workers
-for trivial work, normally at most two concurrent workers, more only with explicit
-user approval. No recursive delegation or proxy worker merely to switch the root
-for a trivial task. Read the optional worker procedure before an admitted spawn.
+for trivial work, usually one or two for substantial work, and up to five concurrent
+workers when independent assignments justify them. Five is a ceiling, not a target;
+more requires explicit user approval. No recursive delegation or proxy worker merely
+to switch the root for a trivial task. Read the optional worker procedure before an admitted spawn.
 
 Give workers bounded ownership and acceptance criteria. Experts may propose decisions
 within their remit; mechanical work follows its fixed approach. Neither may invent

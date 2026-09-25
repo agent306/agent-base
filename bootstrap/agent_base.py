@@ -304,7 +304,7 @@ def repo_validate():
         if not (ROOT / name).is_file():
             raise ValueError(f"Missing repository file: {name}")
     expected = {"model": "gpt-6-sol", "model_reasoning_effort": "medium", "agents": {
-        "enabled": True, "max_concurrent_threads_per_session": 2,
+        "enabled": True, "max_concurrent_threads_per_session": 5,
         "default_subagent_model": "gpt-6-sol", "default_subagent_reasoning_effort": "medium"}}
     if desired() != expected:
         raise ValueError("Provider defaults differ from the approved six scalar settings")

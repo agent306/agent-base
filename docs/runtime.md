@@ -24,6 +24,11 @@ on recursive delegation complements the supported concurrent-worker cap.
 A runtime may still limit delegation. Attribute such restrictions to the host at a
 disclosable level, not an invented AGENTS.md rule.
 
+After changing the worker ceiling, an active task can reread the instructions and
+configuration, but that does not prove its runtime capacity was reloaded. Verify
+the live limit or a useful authorized spawn; report a remaining host cap accurately.
+Do not create throwaway workers just to fill or test the configured ceiling.
+
 Use inspect before setup/update. Its report can identify local contradictions but
 cannot enumerate protected runtime policy. Unrelated MCP/plugin instructions are
 not owned by this installer. Audit applicable skill/plugin guidance selectively;
