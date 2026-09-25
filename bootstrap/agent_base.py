@@ -313,7 +313,8 @@ def setup(args):
     for dest, source in agent_files(codex):
         if not dest.is_file() or sha(dest) != sha(source):
             backup(dest, codex)
-            atomic_write(dest, source.read_text(encoding="utf-8"))
+            with source.open(encoding="utf-8", newline="") as handle:
+                atomic_write(dest, handle.read())
     atomic_write(codex / "agent-base-install.json", json.dumps({"mode": "copy" if args.copy else "linked",
                   "repository": str(ROOT), "provider": "codex",
                   "managed_agents": {dest.name: sha(dest) for dest, _ in agent_files(codex)},

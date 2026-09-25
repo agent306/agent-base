@@ -126,6 +126,29 @@ class BootstrapTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Invalid required model/effort"):
                     app.repo_validate()
 
+    def test_linked_managed_role_refresh_preserves_unrelated_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            repo = root / "repo"
+            home = root / "home"
+            shutil.copytree(app.ROOT, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+            with patch.object(app, "ROOT", repo):
+                args = self.args(home)
+                app.main(["setup", *args])
+                custom = home / ".codex/agents/user-owned.toml"
+                custom.write_text('name = "unrelated"\n')
+                cfg = home / ".codex/config.toml"
+                config_before = cfg.read_bytes()
+                source = repo / "profiles/codex/agents/agent-base-judgment.toml"
+                source.write_text(source.read_text() + "\n# Reviewed role revision.\n")
+                app.main(["setup", *args])
+                app.main(["validate", *args])
+                self.assertEqual((home / ".codex/agents/agent-base-judgment.toml").read_bytes(),
+                                 source.read_bytes())
+                self.assertEqual(custom.read_text(), 'name = "unrelated"\n')
+                self.assertEqual(cfg.read_bytes(), config_before)
+                self.assertEqual(len(list((home / ".codex/agent-base-backups").rglob("*.toml-*"))), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
