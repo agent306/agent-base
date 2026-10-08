@@ -8,6 +8,7 @@ infrastructure and not a promise of flawless model behavior.
 - [Set up or update this device](BOOTSTRAP.md)
 - [Provider-neutral principles](governance/core.md)
 - [Codex mapping](profiles/codex/AGENTS.md) and [runtime diagnosis](docs/runtime.md)
+- [Claude Code mapping](profiles/claude/CLAUDE.md): Opus orchestrates and plans, Sonnet codes, Haiku does mechanical work
 - [Optional worker procedure](governance/workers.md)
 - [Admin design fallback](design/README.md) and [shared UI/UX skill](skills/ui-ux/SKILL.md)
 - [Validation cases and evidence levels](docs/validation.md)
@@ -27,8 +28,9 @@ execution identity. No relative subscription savings are claimed.
 Python3.11+ and Git are required. Use a stable user-owned checkout, reuse a valid
 existing installation, inspect conflicts, and keep recovery material private.
 Each device needs its own setup; account sign-in does not synchronize these files.
-Only Codex has an approved provider adapter. Other providers require verified
-discovery/configuration mechanisms and a user-approved model mapping.
+Codex has an installed provider adapter. Claude Code has a user-approved model mapping
+(profiles/claude/CLAUDE.md, composed into ~/.claude/CLAUDE.md by hand; no installer yet).
+Other providers require verified discovery/configuration mechanisms and a user-approved model mapping.
 
 No secrets, machine configuration, project-private documents or local audit
 snapshots belong in this repository. Preserve history; publish reviewed changes
