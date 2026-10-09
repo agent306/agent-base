@@ -18,10 +18,10 @@ without mandatory includes. Their source files remain the authority; setup/updat
 regenerates the installed file. Detailed resources are optional. Scoped project
 instructions/design win; projects must contain their own required safeguards.
 
-Codex new-session defaults are Sol/Medium, with up to five concurrent workers
-(excluding the root). Use the smallest useful team; five is a ceiling, not a target.
-Astra/High is available for difficult judgment, Luna for suitable bounded work.
-This installation does not change a running root selection, install custom role
+Codex roots default to Astra/High as orchestrator; Sol/Medium is every coding
+worker, Astra/High workers plan read-only, and Luna handles searches and mechanical
+edits (up to five concurrent workers, excluding the root; five is a ceiling, not a
+target). This installation does not change a running root selection, install custom role
 pins or enable experimental features. Accepted worker overrides are not proof of
 execution identity. No relative subscription savings are claimed.
 

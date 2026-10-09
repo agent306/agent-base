@@ -1,6 +1,6 @@
 # Managed scalar defaults only. Merge; never replace the user's whole config.
-model = "gpt-6-sol"
-model_reasoning_effort = "medium"
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
 
 [agents]
 enabled = true

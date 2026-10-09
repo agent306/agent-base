@@ -1,23 +1,36 @@
 # Codex adapter
 
-The ordinary new-session preference is GPT-6 Sol / Medium. Use available GPT-6
-Astra / High for difficult judgment, architecture, ambiguous failures or consequential
-review; optional GPT-6 Luna with a supported appropriate effort for tightly bounded
-low-risk work. xHigh is a bounded escalation for unresolved hard reasoning. Exclude
-Terra. Optimize task reliability and corrective work, not model novelty or a mandatory
-cheapest-first ladder; subscription allowance multipliers are unknown.
+User-approved role mapping, mirroring the Claude profile. Principles in the core
+policy still apply.
 
-Preserve the user's selected root model and effort. Worker selection does not
-authorize changing root or global settings. Files cannot switch a running root.
-Before each spawn inspect the live tool schema, deliberately select model AND effort,
-check effective custom-role pins for conflicts, and use a supported context/fork
-mechanism permitting those settings with sufficient scoped evidence. A stronger
-specialist is legitimate. Unsupported controls require an accurate capability report,
-not invented arguments.
+## Roles
 
-Distinguish selected root, requested worker settings, effective role configuration
-and runtime-reported execution identity. Tool acceptance, role/skill names and worker
-self-description do not verify identity; mark it unverified when metadata is hidden.
+- **Root, GPT-6 Astra / High: orchestrator.** Plans, routes, writes worker prompts
+  and plans, reviews, integrates, and owns releases and production steps. No bulk
+  coding; small direct fixes stay fine under DIRECT routing.
+- **GPT-6 Sol / Medium: every coding worker.** Implementation, refactors, migrations,
+  tests, build and release preparation. Give it a concrete plan, files or worktree,
+  invariants, acceptance checks, non-goals and escalation points; plan quality is
+  the root's responsibility.
+- **GPT-6 Astra / High as worker: planning only.** Read-only planning, architecture
+  or diagnosis; returns a plan for Sol to implement and never edits code.
+- **GPT-6 Luna:** searches, lookups, inventories, summaries, fixed-approach
+  mechanical edits.
+- xHigh is a bounded escalation for unresolved hard reasoning. Exclude Terra.
+
+## Decisions
+
+Never accept a worker's product, design, monetization or acquisition
+recommendation on the user's behalf; those go to the user.
+
+## Settings and identity
+
+Preserve the user's selected root model and effort; files cannot switch a running
+root. Before each spawn inspect the live tool schema, select model AND effort, and
+check custom-role pins for conflicts. Unsupported controls require an accurate
+capability report, not invented arguments. Keep selected root, requested worker
+settings, effective role configuration and runtime-reported identity separate; mark
+identity unverified when metadata is hidden.
 
 Optional resources, loaded only when needed:
 - Before delegation: `{{BASE}}/governance/workers.md`.

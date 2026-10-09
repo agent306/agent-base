@@ -31,7 +31,7 @@ class BootstrapTests(unittest.TestCase):
             path.write_text("# Fixture\nScoped useful policy.\n", encoding="utf-8")
         (self.repo / "profiles/codex/AGENTS.md").write_text("# Adapter\nOptional {{BASE}}/docs/runtime.md\n", encoding="utf-8")
         config = self.repo / "profiles/codex/config.toml"
-        config.write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 5\ndefault_subagent_model = "gpt-6-sol"\ndefault_subagent_reasoning_effort = "medium"\n', encoding="utf-8")
+        config.write_text('model = "gpt-6-astra"\nmodel_reasoning_effort = "high"\n[agents]\nenabled = true\nmax_concurrent_threads_per_session = 5\ndefault_subagent_model = "gpt-6-sol"\ndefault_subagent_reasoning_effort = "medium"\n', encoding="utf-8")
         skill = self.repo / "skills/ui-ux/SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text("---\nname: ui-ux\ndescription: A fixture\n---\nUse project guidance.\n", encoding="utf-8")
@@ -87,7 +87,7 @@ class BootstrapTests(unittest.TestCase):
         merged = app.merge_config(original)
         self.assertTrue(merged.startswith("\ufeff# user\r\n"))
         self.assertIn('secret = "fixture-only"\r\n', merged)
-        self.assertIn('model = "gpt-6-sol" # preference\r\n', merged)
+        self.assertIn('model = "gpt-6-astra" # preference\r\n', merged)
         self.assertEqual(app.merge_config(merged), merged)
         self.assertNotIn("\n", merged.replace("\r\n", ""))
 
@@ -162,7 +162,7 @@ class BootstrapTests(unittest.TestCase):
     def test_uninstall_preserves_later_user_managed_key_and_instruction_edits(self):
         self.install()
         cfg = self.codex / "config.toml"
-        cfg.write_text(app.read_text(cfg).replace('model = "gpt-6-sol"', 'model = "user-choice"'))
+        cfg.write_text(app.read_text(cfg).replace('model = "gpt-6-astra"', 'model = "user-choice"'))
         self.write("AGENTS.md", "User policy")
         with self.assertRaisesRegex(ValueError, "PARTIAL uninstall"):
             self.run_cmd("uninstall")
@@ -365,11 +365,11 @@ class BootstrapTests(unittest.TestCase):
         skill.rename(saved)
         # Retry must leave user config edits made after partial removal untouched.
         config = self.codex / "config.toml"
-        config.write_text('model = "gpt-6-sol"\nuser_setting = true\n')
+        config.write_text('model = "gpt-6-astra"\nuser_setting = true\n')
         self.run_cmd("uninstall")
         self.assertFalse((self.codex / app.MANIFEST).exists())
         self.assertEqual((saved / "SKILL.md").read_text(), "Edited user skill")
-        self.assertEqual(tomllib.loads(app.read_text(config))["model"], "gpt-6-sol")
+        self.assertEqual(tomllib.loads(app.read_text(config))["model"], "gpt-6-astra")
         self.assertIn("Uninstalled;", self.output.getvalue())
 
     def test_partial_uninstall_preserves_changed_link_and_target_until_resolved(self):
